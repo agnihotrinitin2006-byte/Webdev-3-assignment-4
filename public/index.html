@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Secure Connect & Communication Platform</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Socket.IO client served directly by the Socket.IO backend -->
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-section">
+        <div class="shield-badge">🛡️</div>
+        <div>
+          <h1>Secure Connect &amp; Communication Platform</h1>
+          <p class="subtitle">Unit 4 Web Dev III Lab • Node.js, Express, MongoDB, JWT, bcrypt, Socket.IO</p>
+        </div>
+      </div>
+      <div class="auth-status-bar" id="authStatusBar">
+        <span class="status-indicator offline" id="authBadge">Logged Out</span>
+        <span id="activeUserName">Guest</span>
+        <button id="logoutBtn" class="btn btn-sm btn-outline hidden">Logout</button>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="tab-btn active" data-tab="tab-auth">🔐 1. Authentication</button>
+      <button class="tab-btn" data-tab="tab-notes">📝 2. Secure Notes (CRUD)</button>
+      <button class="tab-btn" data-tab="tab-chat">💬 3. Real-Time Chat (Socket.IO)</button>
+      <button class="tab-btn" data-tab="tab-admin">👑 4. Admin Dashboard</button>
+      <button class="tab-btn" data-tab="tab-api-tester">🧪 5. Quick API Inspector</button>
+    </nav>
+
+    <!-- TAB 1: Authentication -->
+    <section id="tab-auth" class="tab-pane active">
+      <div class="grid-2col">
+        <!-- Signup Card -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Register New User</h3>
+            <span class="tag">POST /api/auth/signup</span>
+          </div>
+          <form id="signupForm">
+            <div class="form-group">
+              <label>Full Name</label>
+              <input type="text" id="signupName" placeholder="e.g. Alice Smith" required />
+            </div>
+            <div class="form-group">
+              <label>Email Address</label>
+              <input type="email" id="signupEmail" placeholder="e.g. alice@example.com" required />
+            </div>
+            <div class="form-group">
+              <label>Password (min 6 chars, hashed via bcrypt)</label>
+              <input type="password" id="signupPassword" placeholder="••••••••" required minlength="6" />
+            </div>
+            <div class="form-group">
+              <label>Role</label>
+              <select id="signupRole">
+                <option value="User" selected>User (Standard)</option>
+                <option value="Admin">Admin (Full Access)</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary full-width">Create Secure Account</button>
+          </form>
+        </div>
+
+        <!-- Login Card -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Login with Credentials</h3>
+            <span class="tag">POST /api/auth/login</span>
+          </div>
+          <form id="loginForm">
+            <div class="form-group">
+              <label>Email Address</label>
+              <input type="email" id="loginEmail" placeholder="e.g. alice@example.com" required />
+            </div>
+            <div class="form-group">
+              <label>Password</label>
+              <input type="password" id="loginPassword" placeholder="••••••••" required />
+            </div>
+            <button type="submit" class="btn btn-success full-width">Login &amp; Generate JWT</button>
+          </form>
+          <hr class="divider" />
+          <div class="token-display-box">
+            <div class="token-header">
+              <label>Active JWT Token (Stored in memory/session):</label>
+              <button id="copyTokenBtn" class="btn btn-xs">Copy</button>
+            </div>
+            <textarea id="jwtTokenDisplay" readonly placeholder="JWT token will appear here upon login..."></textarea>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: Notes Management -->
+    <section id="tab-notes" class="tab-pane">
+      <div class="grid-2col">
+        <!-- Create Note Card -->
+        <div class="card">
+          <div class="card-header">
+            <h3 id="noteFormTitle">Create New Note</h3>
+            <span class="tag">POST /api/notes</span>
+          </div>
+          <form id="noteForm">
+            <input type="hidden" id="noteEditId" value="" />
+            <div class="form-group">
+              <label>Note Title</label>
+              <input type="text" id="noteTitle" placeholder="e.g. Unit 4 Project Deliverables" required />
+            </div>
+            <div class="form-group">
+              <label>Description / Content</label>
+              <textarea id="noteDescription" rows="5" placeholder="Write note contents here..." required></textarea>
+            </div>
+            <div class="btn-group">
+              <button type="submit" id="saveNoteBtn" class="btn btn-primary">Save Note</button>
+              <button type="button" id="cancelEditBtn" class="btn btn-outline hidden">Cancel Edit</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Notes List Card -->
+        <div class="card">
+          <div class="card-header">
+            <h3>My Personal Notes</h3>
+            <button id="refreshNotesBtn" class="btn btn-sm btn-outline">🔄 Refresh</button>
+          </div>
+          <div id="notesContainer" class="notes-list">
+            <p class="empty-state">No notes found. Create your first note on the left or login.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: Real-Time Chat (Socket.IO) -->
+    <section id="tab-chat" class="tab-pane">
+      <div class="chat-layout">
+        <!-- Chat Control Sidebar -->
+        <div class="chat-sidebar card">
+          <h3>Chat Controls</h3>
+          <div class="form-group">
+            <label>Current Room</label>
+            <input type="text" id="roomInput" value="general" />
+          </div>
+          <button id="joinRoomBtn" class="btn btn-primary full-width">Join Room</button>
+
+          <hr class="divider" />
+
+          <h4>Connection Status</h4>
+          <div class="status-box">
+            <span class="status-dot disconnected" id="socketDot"></span>
+            <span id="socketStatusText">Disconnected</span>
+          </div>
+          <p class="socket-auth-note">Socket.IO automatically authenticates using your active JWT token.</p>
+
+          <div class="chat-tips">
+            <strong>💡 Multi-User Testing Tip:</strong>
+            <p>Open this page in a second browser window (or incognito tab), log in as a different user, join the same room ("general"), and chat in real-time!</p>
+          </div>
+        </div>
+
+        <!-- Chat Message Area -->
+        <div class="chat-main card">
+          <div class="chat-header">
+            <div>
+              <h3 id="currentRoomTitle">Room: #general</h3>
+              <span class="chat-sub" id="typingIndicator"></span>
+            </div>
+            <span class="badge" id="messageCountBadge">0 messages</span>
+          </div>
+
+          <div class="messages-container" id="messagesContainer">
+            <!-- Messages dynamically populated -->
+          </div>
+
+          <form id="chatForm" class="chat-input-bar">
+            <input type="text" id="chatMessageInput" placeholder="Type a message (press Enter to send)..." autocomplete="off" />
+            <button type="submit" class="btn btn-success">Send 🚀</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: Admin Dashboard -->
+    <section id="tab-admin" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <h3>Administrative Overview (RBAC Protected)</h3>
+          <button id="refreshAdminBtn" class="btn btn-sm btn-primary">Refresh Metrics</button>
+        </div>
+
+        <div class="admin-metrics-grid" id="adminMetricsGrid">
+          <div class="metric-card">
+            <h4>Total Registered Users</h4>
+            <span class="metric-val" id="metricUsers">-</span>
+          </div>
+          <div class="metric-card">
+            <h4>Admin Accounts</h4>
+            <span class="metric-val" id="metricAdmins">-</span>
+          </div>
+          <div class="metric-card">
+            <h4>Total Notes Created</h4>
+            <span class="metric-val" id="metricNotes">-</span>
+          </div>
+          <div class="metric-card">
+            <h4>Socket Chat Messages</h4>
+            <span class="metric-val" id="metricMessages">-</span>
+          </div>
+        </div>
+
+        <h4 class="mt-20">Registered Users Directory</h4>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Registered At</th>
+              </tr>
+            </thead>
+            <tbody id="adminUsersTableBody">
+              <tr>
+                <td colspan="5" class="text-center">Click "Refresh Metrics" or login as an Admin to load directory.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: Quick API Inspector -->
+    <section id="tab-api-tester" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <h3>Quick API Response &amp; Security Inspector</h3>
+          <span class="tag">Inspect JSON Responses &amp; Test Protected Routes</span>
+        </div>
+        <div class="api-actions-toolbar">
+          <button id="testHealthBtn" class="btn btn-outline">Check /api/health</button>
+          <button id="testProfileBtn" class="btn btn-outline">Test Profile with JWT</button>
+          <button id="testProfileNoTokenBtn" class="btn btn-outline">Test Profile WITHOUT Token (Expect 401)</button>
+          <button id="testAdminNoRoleBtn" class="btn btn-outline">Test Admin Route (Expect 403 if User)</button>
+        </div>
+        <div class="terminal-view">
+          <div class="terminal-bar">
+            <span>HTTP Response Console</span>
+            <button id="clearConsoleBtn" class="btn btn-xs">Clear</button>
+          </div>
+          <pre id="apiConsoleOutput">// Click any button above to execute request and inspect HTTP response...</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
